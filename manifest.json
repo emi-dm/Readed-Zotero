@@ -1,15 +1,15 @@
 {
   "manifest_version": 2,
-  "name": "Readed",
-  "version": "1.1.8",
-  "description": "Adds a Read checkbox column to mark articles as read or unread",
+  "name": "ReadFlow",
+  "version": "1.2.0",
+  "description": "Adds a Reading Status column to track your reading progress",
   "author": "emi",
   "applications": {
     "zotero": {
-      "id": "readed-column@emi.dev",
+      "id": "readflow@emi.dev",
       "update_url": "https://example.com/updates.json",
       "strict_min_version": "7.0",
-      "strict_max_version": "7.1.*"
+      "strict_max_version": "8.0.*"
     }
   }
 }

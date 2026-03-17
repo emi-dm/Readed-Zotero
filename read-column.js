@@ -1,127 +1,144 @@
 var ReadColumn = (function () {
-  var _pluginID = "readed-column@emi.dev";
+  var _pluginID = "readflow@emi.dev";
   var _dataKey = "read-status";
+  var _registered = false;
 
   function log(msg) {
     try {
-      Zotero.debug("ReadColumn: " + msg);
-    } catch (e) {}
-  }
-
-  async function toggleReadStatus(item) {
-    try {
-      var hasReadTag = item.hasTag("_read");
-      if (hasReadTag) {
-        await item.removeTag("_read");
-      } else {
-        await item.addTag("_read", 1);
-      }
-      await item.save();
-      log("Toggled item " + item.id + " to " + !hasReadTag);
-      return !hasReadTag;
+      Zotero.debug("ReadFlow: " + msg);
     } catch (e) {
-      log("Error toggling: " + e);
-      return null;
+      dump("ReadFlow log: " + msg + "\n");
     }
   }
 
+  async function setReadStatus(item, status) {
+    try {
+      await item.removeTag("_read");
+      await item.removeTag("_reading");
+      
+      if (status === "read") {
+        await item.addTag("_read", 1);
+      } else if (status === "reading") {
+        await item.addTag("_reading", 1);
+      }
+      
+      await item.save();
+      log("Set item " + item.id + " to " + status);
+      return true;
+    } catch (e) {
+      log("Error setting status: " + e);
+      return false;
+    }
+  }
+
+  function getReadStatus(item) {
+    if (item.hasTag("_read")) return "read";
+    if (item.hasTag("_reading")) return "reading";
+    return "not-read";
+  }
+
   function renderCell(index, data, column, isFirstColumn, doc) {
-    var container = doc.createElement("div");
-    container.style.display = "flex";
-    container.style.justifyContent = "center";
-    container.style.alignItems = "center";
-    container.style.height = "100%";
-    container.style.cursor = "pointer";
+    // data is item.id as string from dataProvider
+    var itemId = parseInt(data);
+    var item = Zotero.Items.get(itemId);
+    var status = item ? getReadStatus(item) : "not-read";
     
-    var checkbox = doc.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = (data === "true");
-    checkbox.style.pointerEvents = "none";
-    checkbox.style.margin = "0";
+    // Create container with flexbox for centering
+    var cell = doc.createElement("div");
+    cell.style.display = "flex";
+    cell.style.justifyContent = "center";
+    cell.style.alignItems = "center";
+    cell.style.width = "100%";
+    cell.style.height = "100%";
+    cell.style.cursor = "pointer";
+    cell.style.userSelect = "none";
     
-    container.appendChild(checkbox);
+    // Create content div
+    var content = doc.createElement("div");
+    content.style.fontSize = "16px";
+    content.style.userSelect = "none";
     
-    container.addEventListener("click", async function (e) {
-      log("Container clicked, index: " + index);
+    var statusSymbols = {
+      "read": "●",
+      "reading": "◐",
+      "not-read": "○"
+    };
+    
+    var symbol = statusSymbols[status] || "○";
+    content.textContent = symbol;
+    cell.title = "Click to change status";
+    
+    if (status === "read") {
+      content.style.color = "#2E7D32";
+    } else if (status === "reading") {
+      content.style.color = "#E65100";
+    } else {
+      content.style.color = "#757575";
+    }
+    
+    // Append content to cell
+    cell.appendChild(content);
+    
+    if (!item) {
+      return cell;
+    }
+    
+    cell.dataset.itemId = item.id;
+    
+    cell.addEventListener("click", function(e) {
+      e.stopPropagation();
+      e.preventDefault();
       
-      var item = null;
+      var target = e.currentTarget;
+      var clickedItemId = parseInt(target.dataset.itemId);
       
-      // Try to get item from tree
-      if (column.tree) {
-        try {
-          var tree = column.tree;
-          
-          // Method 1: getRowAtIndex
-          var row = tree.getRowAtIndex(index);
-          log("getRowAtIndex result: " + (row ? row.ref.id : "null"));
-          if (row && row.ref) {
-            item = row.ref;
-          }
-          
-          // Method 2: get id from tree's ref
-          if (!item) {
-            try {
-              var itemID = tree.getItemAtIndex(index);
-              log("getItemAtIndex result: " + itemID);
-              if (itemID) {
-                item = await Zotero.Items.getAsync(itemID);
-              }
-            } catch (err2) {
-              log("getItemAtIndex error: " + err2);
-            }
-          }
-          
-          // Method 3: visibleItems
-          if (!item) {
-            try {
-              var visible = tree.visibleItems;
-              log("visibleItems length: " + (visible ? visible.length : 0));
-              if (visible && visible[index]) {
-                item = visible[index].ref;
-                log("Got from visibleItems: " + item.id);
-              }
-            } catch (err3) {
-              log("visibleItems error: " + err3);
-            }
-          }
-          
-        } catch (err) {
-          log("Tree error: " + err);
-        }
+      var clickedItem = Zotero.Items.get(clickedItemId);
+      if (!clickedItem) {
+        return;
       }
       
-      // Fallback: try ZoteroPane
-      if (!item) {
-        try {
-          var win = doc.defaultView;
-          var zoteroPane = win.ZoteroPane;
-          var items = zoteroPane.getSelectedItems();
-          if (items && items.length > 0) {
-            item = items[0];
-            log("Got from ZoteroPane: " + item.id);
-          }
-        } catch (err) {
-          log("ZoteroPane error: " + err);
-        }
-      }
+      var currentStatus = getReadStatus(clickedItem);
+      var nextStatus;
       
-      if (item) {
-        log("Final item: " + item.id);
-        var newStatus = await toggleReadStatus(item);
-        if (newStatus !== null) {
-          checkbox.checked = newStatus;
-        }
+      if (currentStatus === "not-read") {
+        nextStatus = "reading";
+      } else if (currentStatus === "reading") {
+        nextStatus = "read";
       } else {
-        log("Could not get item at all!");
+        nextStatus = "not-read";
       }
+      
+      // Update content immediately
+      var contentDiv = target.querySelector('div');
+      if (contentDiv) {
+        contentDiv.textContent = statusSymbols[nextStatus] || "○";
+        contentDiv.title = "Click to change status";
+        
+        if (nextStatus === "read") {
+          contentDiv.style.color = "#2E7D32";
+        } else if (nextStatus === "reading") {
+          contentDiv.style.color = "#E65100";
+        } else {
+          contentDiv.style.color = "#757575";
+        }
+      }
+      
+      setReadStatus(clickedItem, nextStatus);
     });
     
-    return container;
+    return cell;
   }
 
   async function registerColumn() {
+    if (_registered) {
+      log("Column already registered");
+      return;
+    }
+    
     try {
-      await Zotero.ItemTreeManager.registerColumns({
+      log("Registering column...");
+      
+      var columnConfig = {
         pluginID: _pluginID,
         dataKey: _dataKey,
         label: "Read",
@@ -129,27 +146,40 @@ var ReadColumn = (function () {
           if (!item || !item.isRegularItem()) {
             return "";
           }
-          return item.hasTag("_read") ? "true" : "false";
+          return item.id.toString(); // Return just item ID for stable sorting
         },
         renderCell: renderCell,
-        width: "40px"
-      });
-      
-      log("Column registered!");
+        width: "50"
+      };
+
+      await Zotero.ItemTreeManager.registerColumns(columnConfig);
+      log("Column registered successfully!");
+      _registered = true;
     } catch (e) {
-      log("Error: " + e.message);
+      log("Error registering column: " + e.message);
+      dump("ReadFlow Error: " + e.message + "\n" + e.stack + "\n");
     }
   }
 
   return {
     init: async function (options) {
+      log("Init start...");
+      _registered = false;
+    },
+
+    addToWindow: async function (window) {
+      log("addToWindow called");
       await new Promise(r => setTimeout(r, 1000));
       await registerColumn();
     },
-
-    addToWindow: function (window) {},
+    
     removeFromWindow: function (window) {},
-    addToAllWindows: async function () {},
+    
+    addToAllWindows: async function () {
+      log("addToAllWindows called");
+      await registerColumn();
+    },
+    
     removeFromAllWindows: async function () {}
   };
 })();
