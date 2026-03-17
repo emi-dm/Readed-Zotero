@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#"
+     xmlns:em="http://www.mozilla.org/2004/em-rdf#">
+  <Description about="urn:mozilla:install-manifest">
+    <em:id>readed-column@emi.dev</em:id>
+    <em:name>Readed</em:name>
+    <em:version>1.0.7</em:version>
+    <em:description>Adds a Read checkbox column to mark articles as read or unread</em:description>
+    <em:author>emi</em:author>
+    <em:targetApplication>
+      <Description>
+        <em:id>zotero@chnm.wish</em:id>
+        <em:minVersion>7.0</em:minVersion>
+        <em:maxVersion>7.1.*</em:maxVersion>
+      </Description>
+    </em:targetApplication>
+    <em:bootstrap>true</em:bootstrap>
+  </Description>
+</RDF>

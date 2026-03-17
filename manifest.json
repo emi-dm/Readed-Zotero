@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "Readed",
+  "version": "1.1.8",
+  "description": "Adds a Read checkbox column to mark articles as read or unread",
+  "author": "emi",
+  "applications": {
+    "zotero": {
+      "id": "readed-column@emi.dev",
+      "update_url": "https://example.com/updates.json",
+      "strict_min_version": "7.0",
+      "strict_max_version": "7.1.*"
+    }
+  }
+}
